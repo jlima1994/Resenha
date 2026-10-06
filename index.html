@@ -1,0 +1,1530 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Processador de Resenha de Escala</title>
+
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: light-dark(#f3f5f7, #101418);
+  --surface: light-dark(#ffffff, #171c21);
+  --surface2: light-dark(#f7f8fa, #1d2329);
+  --text: light-dark(#17202a, #eef2f5);
+  --muted: light-dark(#66717c, #aab4bd);
+  --border: light-dark(#d8dee4, #303840);
+  --accent: light-dark(#1769aa, #5ba7e6);
+  --accentText: #ffffff;
+  --ok: light-dark(#137333, #71d49a);
+  --danger: light-dark(#b3261e, #ff8f88);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+header {
+  padding: 22px 18px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.header-inner,
+main {
+  width: min(1000px, calc(100% - 28px));
+  margin: auto;
+}
+
+h1 {
+  margin: 0 0 6px;
+  font-size: clamp(22px, 4vw, 32px);
+}
+
+.subtitle {
+  color: var(--muted);
+  margin: 0;
+}
+
+main {
+  padding: 20px 0 40px;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 18px;
+  margin-bottom: 16px;
+}
+
+h2 {
+  margin: 0 0 14px;
+  font-size: 19px;
+}
+
+label {
+  display: block;
+  font-weight: 700;
+  margin-bottom: 7px;
+}
+
+input[type=file] {
+  width: 100%;
+  padding: 12px;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  background: var(--surface2);
+  color: var(--text);
+}
+
+button {
+  border: 0;
+  border-radius: 10px;
+  padding: 12px 18px;
+  font-weight: 700;
+  cursor: pointer;
+  background: var(--accent);
+  color: var(--accentText);
+  font-size: 15px;
+}
+
+button.secondary {
+  background: var(--surface2);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+button:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.status {
+  margin-top: 12px;
+  color: var(--muted);
+  min-height: 20px;
+}
+
+.warning {
+  color: var(--danger);
+}
+
+.ok {
+  color: var(--ok);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.field {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.field small {
+  display: block;
+  color: var(--muted);
+  margin-bottom: 5px;
+}
+
+.field strong {
+  word-break: break-word;
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+
+th {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.resenha {
+  white-space: pre-wrap;
+  font-family: Arial, Helvetica, sans-serif;
+  line-height: 1.65;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  min-height: 150px;
+}
+
+.hidden {
+  display: none;
+}
+
+@media (max-width: 800px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 480px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .card {
+    padding: 14px;
+  }
+
+  button {
+    width: 100%;
+  }
+}
+</style>
+</head>
+
+<body>
+
+<header>
+  <div class="header-inner">
+    <h1>Processador de Resenha</h1>
+    <p class="subtitle">
+      Interpretação de escala PDF e montagem automática da resenha.
+    </p>
+  </div>
+</header>
+
+<main>
+
+<section class="card">
+
+  <h2>1. Selecionar escala</h2>
+
+  <label for="pdfFile">
+    Arquivo PDF da escala
+  </label>
+
+  <input
+    id="pdfFile"
+    type="file"
+    accept="application/pdf,.pdf"
+  >
+
+  <div class="actions">
+    <button id="readBtn" disabled>
+      Interpretar Escala
+    </button>
+  </div>
+
+  <div id="status" class="status">
+    Selecione um PDF para começar.
+  </div>
+
+</section>
+
+
+<section id="dataCard" class="card hidden">
+
+  <h2>2. Dados interpretados</h2>
+
+  <div class="grid">
+
+    <div class="field">
+      <small>Data</small>
+      <strong id="data">—</strong>
+    </div>
+
+    <div class="field">
+      <small>Hora inicial</small>
+      <strong id="inicio">—</strong>
+    </div>
+
+    <div class="field">
+      <small>Hora final</small>
+      <strong id="fim">—</strong>
+    </div>
+
+    <div class="field">
+      <small>Convênio</small>
+      <strong id="convenio">—</strong>
+    </div>
+
+    <div class="field">
+      <small>OPM</small>
+      <strong id="opm">—</strong>
+    </div>
+
+  </div>
+
+  <h2 style="margin-top:20px;">
+    Policiais
+  </h2>
+
+  <div class="table-wrap">
+
+    <table>
+
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Posto / Graduação</th>
+          <th>RE</th>
+          <th>Nome completo</th>
+        </tr>
+      </thead>
+
+      <tbody id="policiais"></tbody>
+
+    </table>
+
+  </div>
+
+  <div class="actions">
+    <button id="processBtn">
+      Processar Resenha
+    </button>
+  </div>
+
+</section>
+
+
+<section id="resultCard" class="card hidden">
+
+  <h2>3. Resenha</h2>
+
+  <div id="resenha" class="resenha"></div>
+
+  <div class="actions">
+
+    <button id="copyBtn">
+      Copiar Resenha
+    </button>
+
+    <button id="clearBtn" class="secondary">
+      Limpar
+    </button>
+
+  </div>
+
+  <div id="copyStatus" class="status"></div>
+
+</section>
+
+</main>
+
+
+<!-- PDF.JS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+<script>
+
+"use strict";
+
+
+/* =====================================================
+   CONFIGURAÇÃO
+   ===================================================== */
+
+let escala = null;
+
+const $ = id => document.getElementById(id);
+
+
+/*
+  PDF.js clássico.
+  Isso disponibiliza window.pdfjsLib diretamente.
+*/
+
+if (window.pdfjsLib) {
+
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+}
+
+
+/* =====================================================
+   SELEÇÃO DO PDF
+   ===================================================== */
+
+$("pdfFile").addEventListener("change", () => {
+
+  const file = $("pdfFile").files[0];
+
+  $("readBtn").disabled = !file;
+
+  if (!file) {
+
+    $("status").textContent =
+      "Selecione um PDF para começar.";
+
+    $("status").className = "status";
+
+    return;
+  }
+
+  $("status").textContent =
+    "PDF selecionado: " + file.name;
+
+  $("status").className =
+    "status";
+
+});
+
+
+/* =====================================================
+   NORMALIZAÇÃO
+   ===================================================== */
+
+function normalizarTexto(texto) {
+
+  return String(texto || "")
+    .replace(/\u00A0/g, " ")
+    .replace(/[ \t]+/g, " ")
+    .trim();
+
+}
+
+
+/* =====================================================
+   GRADUAÇÃO
+   ===================================================== */
+
+function abreviarGraduacao(texto) {
+
+  let g =
+    normalizarTexto(texto)
+      .toUpperCase();
+
+
+  /*
+    IMPORTANTE:
+    Verifica primeiro as graduações
+    numeradas para não perder o número.
+  */
+
+  if (/^1\.?\s*SARGENTO\b/.test(g)) {
+    return "1º SGT PM";
+  }
+
+  if (/^2\.?\s*SARGENTO\b/.test(g)) {
+    return "2º SGT PM";
+  }
+
+  if (/^3\.?\s*SARGENTO\b/.test(g)) {
+    return "3º SGT PM";
+  }
+
+
+  if (/^SOLDADO\b/.test(g)) {
+    return "SD PM";
+  }
+
+
+  if (/^CABO\b/.test(g)) {
+    return "CB PM";
+  }
+
+
+  if (/^SUBTENENTE\b/.test(g)) {
+    return "ST PM";
+  }
+
+
+  if (/^ASPIRANTE\b/.test(g)) {
+    return "ASP PM";
+  }
+
+
+  if (/^TENENTE-CORONEL\b/.test(g)) {
+    return "TC PM";
+  }
+
+
+  if (/^CORONEL\b/.test(g)) {
+    return "CEL PM";
+  }
+
+
+  if (/^MAJOR\b/.test(g)) {
+    return "MAJ PM";
+  }
+
+
+  if (/^CAPITÃO\b/.test(g) ||
+      /^CAPITAO\b/.test(g)) {
+
+    return "CAP PM";
+  }
+
+
+  if (/^TENENTE\b/.test(g)) {
+    return "TEN PM";
+  }
+
+
+  if (/^SARGENTO\b/.test(g)) {
+    return "SGT PM";
+  }
+
+
+  return g;
+
+}
+
+
+/* =====================================================
+   CONVÊNIO
+   ===================================================== */
+
+function extrairConvenio(linhas, texto) {
+
+  let convenio = "";
+
+
+  /*
+    Procura a linha do Convênio.
+  */
+
+  const indice =
+    linhas.findIndex(l =>
+      /^Convênio:?$/i.test(l) ||
+      /^Convenio:?$/i.test(l)
+    );
+
+
+  if (
+    indice >= 0 &&
+    linhas[indice + 1]
+  ) {
+
+    convenio =
+      linhas[indice + 1];
+
+  }
+
+
+  /*
+    Fallback.
+  */
+
+  if (!convenio) {
+
+    const match =
+      texto.match(
+        /(?:Convênio|Convenio)\s*:?\s*(?:\r?\n\s*)?([^\r\n]+)/i
+      );
+
+
+    if (match) {
+      convenio = match[1];
+    }
+
+  }
+
+
+  return normalizarTexto(convenio)
+    .replace(
+      /^\d+\s*[-–—]\s*/,
+      ""
+    )
+    .toUpperCase();
+
+}
+
+
+/* =====================================================
+   OPM
+   ===================================================== */
+
+function extrairOPM(linhas, texto) {
+
+  let origem = "";
+
+
+  const indice =
+    linhas.findIndex(l =>
+      /^OPM Responsável:?$/i.test(l) ||
+      /^OPM Responsavel:?$/i.test(l)
+    );
+
+
+  if (
+    indice >= 0 &&
+    linhas[indice + 1]
+  ) {
+
+    origem =
+      linhas[indice + 1];
+
+  }
+
+
+  if (!origem) {
+
+    const match =
+      texto.match(
+        /OPM\s+Responsável\s*:?\s*[\r\n]?\s*([^\r\n]+)/i
+      );
+
+
+    if (match) {
+      origem = match[1];
+    }
+
+  }
+
+
+  const cia =
+    origem.match(
+      /(\d+)\.CIA\b/i
+    );
+
+
+  return cia
+    ? cia[1] + "ª CIA"
+    : "";
+
+}
+
+
+/* =====================================================
+   RECONSTRUIR LINHAS DO PDF
+   ===================================================== */
+
+function reconstruirLinhas(items) {
+
+  const grupos = [];
+
+
+  for (const item of items) {
+
+    if (
+      !item.str ||
+      !item.str.trim()
+    ) {
+      continue;
+    }
+
+
+    const texto =
+      normalizarTexto(item.str);
+
+
+    const x =
+      Number(item.transform?.[4] || 0);
+
+
+    const y =
+      Number(item.transform?.[5] || 0);
+
+
+    let grupo =
+      grupos.find(
+        g => Math.abs(g.y - y) <= 3
+      );
+
+
+    if (!grupo) {
+
+      grupo = {
+        y: y,
+        items: []
+      };
+
+      grupos.push(grupo);
+
+    }
+
+
+    grupo.items.push({
+      texto,
+      x
+    });
+
+  }
+
+
+  /*
+    PDF possui coordenada Y invertida.
+  */
+
+  grupos.sort(
+    (a, b) => b.y - a.y
+  );
+
+
+  return grupos
+    .map(grupo => {
+
+      grupo.items.sort(
+        (a, b) => a.x - b.x
+      );
+
+
+      return normalizarTexto(
+        grupo.items
+          .map(item => item.texto)
+          .join(" ")
+      );
+
+    })
+    .filter(Boolean);
+
+}
+
+
+/* =====================================================
+   IDENTIFICAR POLICIAIS
+   ===================================================== */
+
+function detectarPoliciais(linhas) {
+
+  const policiais = [];
+
+  const vistos = new Set();
+
+
+  for (
+    let i = 0;
+    i < linhas.length;
+    i++
+  ) {
+
+    let linha =
+      normalizarTexto(linhas[i]);
+
+
+    if (!linha) {
+      continue;
+    }
+
+
+    /*
+      Exemplo:
+
+      1 2. SARGENTO PM
+      970532-5
+      JEFFERSON...
+
+      ou:
+
+      1 2. SARGENTO PM 970532-5
+      JEFFERSON...
+    */
+
+
+    linha =
+      linha.replace(
+        /^\d+\s+/,
+        ""
+      );
+
+
+    const match =
+      linha.match(
+        /^(.+?)\s+(\d{5,7}-[A-Z0-9])\s+(.+)$/i
+      );
+
+
+    if (!match) {
+      continue;
+    }
+
+
+    let graduacao =
+      match[1];
+
+
+    const re =
+      match[2].toUpperCase();
+
+
+    let nome =
+      normalizarTexto(match[3]);
+
+
+    /*
+      Remove OPM que eventualmente
+      tenha sido capturado junto ao nome.
+    */
+
+    nome =
+      nome.replace(
+        /\s+\d+\.BPM\/M\b.*$/i,
+        ""
+      );
+
+
+    nome =
+      nome.replace(
+        /\s+\d+\.BPM\b.*$/i,
+        ""
+      );
+
+
+    nome =
+      nome.replace(
+        /\s+\d+\.CIA\b.*$/i,
+        ""
+      );
+
+
+    /*
+      Remove PM se tiver ficado
+      separado da graduação.
+    */
+
+    graduacao =
+      graduacao.replace(
+        /\s+PM$/i,
+        ""
+      );
+
+
+    /*
+      Converte graduação.
+    */
+
+    graduacao =
+      abreviarGraduacao(
+        graduacao
+      );
+
+
+    nome =
+      nome.toUpperCase();
+
+
+    if (!nome) {
+      continue;
+    }
+
+
+    const chave =
+      re + "|" + nome;
+
+
+    /*
+      Evita duplicações.
+    */
+
+    if (vistos.has(chave)) {
+      continue;
+    }
+
+
+    vistos.add(chave);
+
+
+    policiais.push({
+
+      graduacao,
+
+      re,
+
+      nome
+
+    });
+
+  }
+
+
+  return policiais;
+
+}
+
+
+/* =====================================================
+   DATA
+   ===================================================== */
+
+function extrairData(texto) {
+
+  const match =
+    texto.match(
+      /\b\d{2}\/\d{2}\/\d{4}\b/
+    );
+
+
+  return match
+    ? match[0]
+    : "";
+
+}
+
+
+/* =====================================================
+   HORÁRIO DA ESCALA
+   ===================================================== */
+
+function extrairHorario(linhas, texto) {
+
+  /*
+    PRIMEIRO:
+    procura uma linha que contenha
+    a data e os dois horários.
+
+    Isso evita pegar horários
+    existentes nas linhas dos policiais.
+  */
+
+  for (const linha of linhas) {
+
+    const match =
+      linha.match(
+        /\b\d{2}\/\d{2}\/\d{4}\b.*?\b(\d{2}:\d{2})\b.*?\b(\d{2}:\d{2})\b/
+      );
+
+
+    if (match) {
+
+      return {
+        inicio: match[1],
+        fim: match[2]
+      };
+
+    }
+
+  }
+
+
+  /*
+    Segundo formato possível:
+
+    DATA
+    06:00
+    14:00
+  */
+
+  for (
+    let i = 0;
+    i < linhas.length;
+    i++
+  ) {
+
+    if (
+      /\b\d{2}\/\d{2}\/\d{4}\b/.test(
+        linhas[i]
+      )
+    ) {
+
+      const trecho =
+        linhas
+          .slice(i, i + 5)
+          .join(" ");
+
+
+      const horas =
+        trecho.match(
+          /\b\d{2}:\d{2}\b/g
+        ) || [];
+
+
+      if (horas.length >= 2) {
+
+        return {
+
+          inicio: horas[0],
+
+          fim: horas[1]
+
+        };
+
+      }
+
+    }
+
+  }
+
+
+  /*
+    Último fallback.
+  */
+
+  const horas =
+    texto.match(
+      /\b\d{2}:\d{2}\b/g
+    ) || [];
+
+
+  return {
+
+    inicio: horas[0] || "",
+
+    fim: horas[1] || ""
+
+  };
+
+}
+
+
+/* =====================================================
+   PARSER PRINCIPAL
+   ===================================================== */
+
+function parsearTexto(texto) {
+
+  texto =
+    texto.replace(
+      /\r/g,
+      ""
+    );
+
+
+  const linhas =
+    texto
+      .split("\n")
+      .map(normalizarTexto)
+      .filter(Boolean);
+
+
+  const data =
+    extrairData(texto);
+
+
+  const horario =
+    extrairHorario(
+      linhas,
+      texto
+    );
+
+
+  const convenio =
+    extrairConvenio(
+      linhas,
+      texto
+    );
+
+
+  const opm =
+    extrairOPM(
+      linhas,
+      texto
+    );
+
+
+  const policiais =
+    detectarPoliciais(
+      linhas
+    );
+
+
+  return {
+
+    data,
+
+    inicio:
+      horario.inicio,
+
+    fim:
+      horario.fim,
+
+    convenio,
+
+    opm,
+
+    policiais
+
+  };
+
+}
+
+
+/* =====================================================
+   LER PDF
+   ===================================================== */
+
+async function lerPdf(file) {
+
+  if (!window.pdfjsLib) {
+
+    throw new Error(
+      "O leitor PDF não foi carregado. Verifique a conexão com a internet e recarregue a página."
+    );
+
+  }
+
+
+  const buffer =
+    await file.arrayBuffer();
+
+
+  const pdf =
+    await window.pdfjsLib
+      .getDocument({
+        data: buffer
+      })
+      .promise;
+
+
+  let textoCompleto = "";
+
+
+  for (
+    let pagina = 1;
+    pagina <= pdf.numPages;
+    pagina++
+  ) {
+
+    const page =
+      await pdf.getPage(
+        pagina
+      );
+
+
+    const content =
+      await page.getTextContent();
+
+
+    const linhas =
+      reconstruirLinhas(
+        content.items
+      );
+
+
+    textoCompleto +=
+      linhas.join("\n") +
+      "\n";
+
+  }
+
+
+  if (!textoCompleto.trim()) {
+
+    throw new Error(
+      "Não foi possível extrair texto deste PDF."
+    );
+
+  }
+
+
+  return textoCompleto;
+
+}
+
+
+/* =====================================================
+   RENDERIZAR
+   ===================================================== */
+
+function renderizar() {
+
+  $("data").textContent =
+    escala.data ||
+    "Não identificado";
+
+
+  $("inicio").textContent =
+    escala.inicio ||
+    "Não identificado";
+
+
+  $("fim").textContent =
+    escala.fim ||
+    "Não identificado";
+
+
+  $("convenio").textContent =
+    escala.convenio ||
+    "Não identificado";
+
+
+  $("opm").textContent =
+    escala.opm ||
+    "Não identificado";
+
+
+  $("policiais").innerHTML =
+    escala.policiais
+      .map(
+        (p, i) => `
+          <tr>
+            <td>${i + 1}</td>
+            <td>${p.graduacao}</td>
+            <td>${p.re}</td>
+            <td>${p.nome}</td>
+          </tr>
+        `
+      )
+      .join("");
+
+
+  $("dataCard")
+    .classList
+    .remove("hidden");
+
+}
+
+
+/* =====================================================
+   INTERPRETAR
+   ===================================================== */
+
+$("readBtn").addEventListener(
+  "click",
+  async () => {
+
+    const file =
+      $("pdfFile").files[0];
+
+
+    if (!file) {
+      return;
+    }
+
+
+    $("readBtn").disabled =
+      true;
+
+
+    $("status").textContent =
+      "Interpretando escala...";
+
+
+    $("status").className =
+      "status";
+
+
+    try {
+
+      const texto =
+        await lerPdf(file);
+
+
+      escala =
+        parsearTexto(
+          texto
+        );
+
+
+      renderizar();
+
+
+      if (
+        escala.policiais.length === 0
+      ) {
+
+        $("status").textContent =
+          "Escala lida, mas nenhum policial foi identificado.";
+
+        $("status").className =
+          "status warning";
+
+      } else {
+
+        $("status").textContent =
+          "Escala interpretada com sucesso. " +
+          escala.policiais.length +
+          " policial(is) identificado(s).";
+
+        $("status").className =
+          "status ok";
+
+      }
+
+    } catch (erro) {
+
+      console.error(
+        erro
+      );
+
+
+      $("status").textContent =
+        "Erro: " +
+        erro.message;
+
+
+      $("status").className =
+        "status warning";
+
+    } finally {
+
+      $("readBtn").disabled =
+        false;
+
+    }
+
+  }
+);
+
+
+/* =====================================================
+   GERAR RESENHA
+   ===================================================== */
+
+$("processBtn").addEventListener(
+  "click",
+  () => {
+
+    if (!escala) {
+      return;
+    }
+
+
+    function formatarHora(hora) {
+
+      return (hora || "")
+        .replace(
+          ":",
+          "H"
+        );
+
+    }
+
+
+    const linhas = [];
+
+
+    /*
+      LINHA 1
+      Convênio
+    */
+
+    if (escala.convenio) {
+
+      linhas.push(
+        escala.convenio
+      );
+
+    }
+
+
+    /*
+      LINHA 2
+      Horário
+    */
+
+    if (
+      escala.inicio &&
+      escala.fim
+    ) {
+
+      linhas.push(
+        formatarHora(
+          escala.inicio
+        ) +
+        " ÀS " +
+        formatarHora(
+          escala.fim
+        )
+      );
+
+    }
+
+
+    /*
+      POLICIAIS
+    */
+
+    escala.policiais.forEach(
+      policial => {
+
+        linhas.push(
+          policial.graduacao +
+          " " +
+          policial.re +
+          " " +
+          policial.nome
+        );
+
+      }
+    );
+
+
+    $("resenha").textContent =
+      linhas.join("\n");
+
+
+    $("resultCard")
+      .classList
+      .remove("hidden");
+
+
+    $("copyStatus").textContent =
+      "";
+
+  }
+);
+
+
+/* =====================================================
+   COPIAR
+   ===================================================== */
+
+$("copyBtn").addEventListener(
+  "click",
+  async () => {
+
+    const texto =
+      $("resenha").textContent;
+
+
+    if (!texto) {
+      return;
+    }
+
+
+    try {
+
+      await navigator
+        .clipboard
+        .writeText(
+          texto
+        );
+
+
+      $("copyStatus").textContent =
+        "Resenha copiada com sucesso.";
+
+
+      $("copyStatus").className =
+        "status ok";
+
+
+    } catch {
+
+      const area =
+        document.createElement(
+          "textarea"
+        );
+
+
+      area.value =
+        texto;
+
+
+      area.style.position =
+        "fixed";
+
+
+      area.style.opacity =
+        "0";
+
+
+      document.body.appendChild(
+        area
+      );
+
+
+      area.focus();
+
+      area.select();
+
+
+      try {
+
+        document.execCommand(
+          "copy"
+        );
+
+
+        $("copyStatus").textContent =
+          "Resenha copiada com sucesso.";
+
+
+        $("copyStatus").className =
+          "status ok";
+
+      } catch {
+
+        $("copyStatus").textContent =
+          "Não foi possível copiar automaticamente.";
+
+        $("copyStatus").className =
+          "status warning";
+
+      }
+
+
+      document.body.removeChild(
+        area
+      );
+
+    }
+
+  }
+);
+
+
+/* =====================================================
+   LIMPAR
+   ===================================================== */
+
+$("clearBtn").addEventListener(
+  "click",
+  () => {
+
+    escala = null;
+
+
+    $("pdfFile").value =
+      "";
+
+
+    $("readBtn").disabled =
+      true;
+
+
+    $("dataCard")
+      .classList
+      .add("hidden");
+
+
+    $("resultCard")
+      .classList
+      .add("hidden");
+
+
+    $("policiais").innerHTML =
+      "";
+
+
+    $("resenha").textContent =
+      "";
+
+
+    $("copyStatus").textContent =
+      "";
+
+
+    $("status").textContent =
+      "Selecione um PDF para começar.";
+
+
+    $("status").className =
+      "status";
+
+  }
+);
+
+</script>
+
+</body>
+</html>
