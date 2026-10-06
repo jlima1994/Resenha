@@ -142,19 +142,22 @@ th { color: var(--muted); font-size: 13px; }
       <div class="field"><small>OPM</small><strong id="opm">—</strong></div>
     </div>
 
-    <h2 style="margin-top:20px;">Policiais</h2>
-    <div style="overflow:auto;">
-      <table>
-        <thead>
-          <tr><th>#</th><th>Posto / Graduação</th><th>RE</th><th>Nome completo</th></tr>
-        </thead>
-        <tbody id="policiais"></tbody>
-      </table>
-    </div>
+```
+<h2 style="margin-top:20px;">Policiais</h2>
+<div style="overflow:auto;">
+  <table>
+    <thead>
+      <tr><th>#</th><th>Posto / Graduação</th><th>RE</th><th>Nome completo</th></tr>
+    </thead>
+    <tbody id="policiais"></tbody>
+  </table>
+</div>
 
-    <div class="actions">
-      <button id="processBtn">Processar Resenha</button>
-    </div>
+<div class="actions">
+  <button id="processBtn">Processar Resenha</button>
+</div>
+```
+
   </section>
 
   <section id="resultCard" class="card hidden">
@@ -180,6 +183,17 @@ $("pdfFile").addEventListener("change", () => {
   $("status").textContent = file ? "PDF selecionado: " + file.name : "Selecione um PDF para começar.";
   $("status").className = "status";
 });
+
+let pdfJsPromise = import("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs")
+  .then(modulo => {
+    window.pdfjsLib = modulo;
+    modulo.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs";
+    return modulo;
+  })
+  .catch(erro => {
+    window.pdfjsLibError = erro;
+    throw erro;
+  });
 
 function normalizarTexto(s) {
   return (s || "")
@@ -222,64 +236,46 @@ function abreviarGraduacao(g) {
   return s.replace(/\\bPM\\b/g, "PM");
 }
 
-function detectarPoliciais(linhas) {
+function parsearTexto(texto) {
+  texto = texto.replace(/\\r/g, "");
+  const linhas = texto.split("\\n").map(normalizarTexto).filter(Boolean);
+
+  const dataMatch = texto.match(/Data:\\s*\\n?\\s*(\\d{2}\\/\\d{2}\\/\\d{4})/i);
+  const data = dataMatch ? dataMatch[1] : ((texto.match(/\\b\\d{2}\\/\\d{2}\\/\\d{4}\\b/) || [])[0] || "");
+
+  const horas = [...texto.matchAll(/\\b(\\d{2}:\\d{2})\\b/g)].map(m => m[1]);
+  let inicio = "", fim = "";
+  const faixa = texto.match(/(\\d{2}\\/\\d{2}\\/\\d{4})\\s+(\\d{2}:\\d{2})\\s+(\\d{2}\\/\\d{2}\\/\\d{4})\\s+(\\d{2}:\\d{2})/);
+  if (faixa) { inicio = faixa[2]; fim = faixa[4]; }
+
+  const convMatch = texto.match(/Convênio:\\s*\\r?\\n?\\s*([^\\r\\n]+)/i);
+  let convenio = "";
+  if (convMatch) convenio = normalizarTexto(convMatch[1]).replace(/^\\d+\\s*[-–—]\\s*/, "").toUpperCase();
+
+  const opm = extrairOPM(texto);
+
   const policiais = [];
-  const vistos = new Set();
-  for (const original of linhas) {
-    let linha = normalizarTexto(original).replace(/^\d+\s+/, '');
-    if (!linha) continue;
-    const m = linha.match(/^(.+?)\s+(\d{5,7}-[A-Z0-9])\s+(.+?)(?=\s+\d{3,}\.BPM\b|$)/i);
-    if (!m) continue;
-    const graduacaoBruta = m[1].trim();
-    const re = m[2].toUpperCase();
-    let nome = normalizarTexto(m[3]);
-    nome = nome.replace(/\s+\d{3,}\.BPM\b.*$/i, '').replace(/\s+\d+\.CIA\b.*$/i, '').trim();
-    if (!nome) continue;
-    if (!/PM|SOLDADO|CABO|SARGENTO|TENENTE|CAPIT|MAJOR|CORONEL|SUBTENENTE|ASPIRANTE/i.test(graduacaoBruta)) continue;
-    const chave = re + '|' + nome.toUpperCase();
-    if (vistos.has(chave)) continue;
-    vistos.add(chave);
-    policiais.push({ graduacao: abreviarGraduacao(graduacaoBruta), re, nome: nome.toUpperCase() });
+  const re = /(?:^|\\n)\\s*\\d+\\s+(.+?)\\s+(\\d{6,7}-[A-Z0-9])\\s+([A-ZÀ-Ü][^\\n]+?)(?=\\s+\\d{3}\\.BPM|\\n|$)/gi;
+  let m;
+  while ((m = re.exec(texto)) !== null) {
+    const graduacao = abreviarGraduacao(m[1]);
+    const nome = normalizarTexto(m[3]).toUpperCase();
+    if (m[2] && nome) policiais.push({ graduacao, re: m[2].toUpperCase(), nome });
   }
+
   if (!policiais.length) {
-    for (const original of linhas) {
-      const linha = normalizarTexto(original);
-      const m = linha.match(/^(?:\d+\s+)?(.+?)\s+(\d{5,7}-[A-Z0-9])\s+(.+)$/i);
-      if (!m) continue;
-      const nome = normalizarTexto(m[3]).replace(/\s+\d{3,}\.BPM.*$/i, '').toUpperCase();
-      const chave = m[2].toUpperCase() + '|' + nome;
-      if (!nome || vistos.has(chave)) continue;
-      vistos.add(chave);
-      policiais.push({ graduacao: abreviarGraduacao(m[1]), re: m[2].toUpperCase(), nome });
+    for (let i = 0; i < linhas.length; i++) {
+      const linha = linhas[i];
+      const pm = linha.match(/^\\d+\\s+(.+?)\\s+(\\d{6,7}-[A-Z0-9])\\s+(.+)$/i);
+      if (pm) policiais.push({
+        graduacao: abreviarGraduacao(pm[1]),
+        re: pm[2].toUpperCase(),
+        nome: normalizarTexto(pm[3]).replace(/\\s+18\\.BPM.*$/i, "").toUpperCase()
+      });
     }
   }
-  return policiais;
-}
 
-function parsearTexto(texto) {
-  texto = texto.replace(/\r/g, '');
-  const linhas = texto.split('\n').map(normalizarTexto).filter(Boolean);
-  const data = (texto.match(/\b\d{2}\/\d{2}\/\d{4}\b/) || [''])[0];
-  const faixa = texto.match(/(\d{2}\/\d{2}\/\d{4})\s+(\d{2}:\d{2})\s+(\d{2}\/\d{2}\/\d{4})\s+(\d{2}:\d{2})/);
-  let inicio = faixa ? faixa[2] : '';
-  let fim = faixa ? faixa[4] : '';
-  if (!inicio || !fim) {
-    const horas = [...texto.matchAll(/\b\d{2}:\d{2}\b/g)].map(x => x[0]);
-    inicio = inicio || horas[0] || '';
-    fim = fim || horas[1] || '';
-  }
-  const idxConv = linhas.findIndex(l => /^(Convênio|Convenio):?$/i.test(l));
-  let convenio = idxConv >= 0 && linhas[idxConv + 1] ? linhas[idxConv + 1] : '';
-  if (!convenio) {
-    const m = texto.match(/(?:Convênio|Convenio):?\s*(?:\n\s*)?(\d+\s*[-–—]\s*[^\r\n]+)/i);
-    convenio = m ? m[1] : '';
-  }
-  convenio = normalizarTexto(convenio).replace(/^\d+\s*[-–—]\s*/, '').toUpperCase();
-  const idxOpm = linhas.findIndex(l => /^(OPM Responsável|OPM Responsavel):?$/i.test(l));
-  const opmBase = idxOpm >= 0 ? linhas[idxOpm + 1] || '' : texto;
-  const opmMatch = opmBase.match(/\b(\d+)\.CIA\b/i) || texto.match(/\b(\d+)\.CIA\b/i);
-  const opm = opmMatch ? opmMatch[1] + 'ª CIA' : '';
-  return { data, inicio, fim, convenio, opm, policiais: detectarPoliciais(linhas) };
+  return { data, inicio, fim, convenio, opm, policiais };
 }
 
 async function lerPdf(file) {
@@ -295,7 +291,16 @@ async function lerPdf(file) {
     for (let p = 1; p <= pdf.numPages; p++) {
       const page = await pdf.getPage(p);
       const content = await page.getTextContent();
-      texto += content.items.map(x => x.str).join(" ") + "\\n";
+      let ultimaY = null;
+      for (const item of content.items) {
+        if (!item.str || !item.str.trim()) continue;
+        const y = item.transform[5];
+        if (ultimaY !== null && Math.abs(y - ultimaY) > 3) texto += String.fromCharCode(10);
+        else if (texto && !texto.endsWith(String.fromCharCode(10))) texto += " ";
+        texto += item.str.trim();
+        ultimaY = y;
+      }
+      texto += String.fromCharCode(10);
     }
     return texto;
   }
@@ -348,7 +353,7 @@ $("processBtn").addEventListener("click", () => {
   if (!escala) return;
 
   const hora = (h) => (h || "").replace(":", "H");
-  const cabecalho = "(" + (escala.convenio || "") + ")";
+  const cabecalho = escala.convenio || "";
   const horario = hora(escala.inicio) + " ÀS " + hora(escala.fim);
 
   // Mantém a ordem decrescente conforme a posição dos policiais na escala.
@@ -382,6 +387,11 @@ $("clearBtn").addEventListener("click", () => {
   $("status").className = "status";
 });
 </script>
+
+<!-- PDF.js é carregado apenas quando o ambiente permitir recursos externos.
+     A versão de produção poderá embutir a biblioteca para funcionamento offline. -->
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs" type="module"></script>
 
 </body>
 </html>
